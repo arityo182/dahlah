@@ -135,3 +135,5 @@ def row_count2(query, val,  conn):
     mycursor.fetchall()
     rc = mycursor.rowcount
     return rc
+
+#aa

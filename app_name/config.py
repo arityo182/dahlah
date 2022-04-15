@@ -20,3 +20,11 @@ DB_HOST = "localhost"
 
 # URL
 BACKEND_BASE_URL = "https://localhost:20000/"
+
+# Folder Path
+# 2 variabel dibawah merupakan default logs dan upload (didalam direktori projek)
+# 2 variabel dibawah jangan dihapus, jika tidak ingin menggunakan default
+# cukup comment 2 variabel dibawah dan buat 2 variabel baru dengan nama yang sama
+UPLOAD_FOLDER_PATH = os.path.abspath(
+    os.path.join(__file__, "../../upload")) + "/"
+LOGS_FOLDER_PATH = os.path.abspath(os.path.join(__file__, "../../logs"))

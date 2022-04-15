@@ -35,6 +35,8 @@ jwt = JWTManager(app)
 app.config['PRODUCT_ENVIRONMENT'] = CFG.PRODUCT_ENVIRONMENT
 app.config['BACKEND_BASE_URL'] = CFG.BACKEND_BASE_URL
 
+app.config['LOGS'] = CFG.LOGS_FOLDER_PATH
+
 
 user = Blueprint('users', __name__,)
 
@@ -134,21 +136,41 @@ def register():
         values = (nama, email, no_tlp, pass_ency, status_id)
         id_user = dt.insert_data_last_row(query, values)
 
-        # Insert to table customer
-        query2 = "INSERT INTO customer (id_user) VALUES (%s)"
-        values2 = (id_user, )
-        dt.insert_data(query2, values2)
+        if status_id == "guru" :
+            # Insert to table customer
+            query2 = "INSERT INTO guru (id_user) VALUES (%s)"
+            values2 = (id_user, )
+            dt.insert_data(query2, values2)
 
-        hasil = "Insert Customer Success"
+            hasil = "Silakan Login"
 
-        try:
-            logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME + \
-                " - id_user = "+str(id_user)+" - roles = "+str(role)+"\n"
-        except Exception as e:
-            logs = secure_filename(strftime(
-                "%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME+" - id_user = NULL - roles = NULL\n"
-        tambahLogs(logs)
-        return make_response(jsonify({'status_code': 200, 'description': hasil}), 200)
+            try:
+                logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME + \
+                    " - id_user = "+str(id_user)+" - roles = "+str(role)+"\n"
+            except Exception as e:
+                logs = secure_filename(strftime(
+                    "%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME+" - id_user = NULL - roles = NULL\n"
+            # tambahLogs(logs)
+            return make_response(jsonify({'status_code': 200, 'description': hasil}), 200)
+        else :
+            # Insert to table customer
+            query2 = "INSERT INTO murid (id_user) VALUES (%s)"
+            values2 = (id_user, )
+            dt.insert_data(query2, values2)
+
+            hasil = "Silakan Login"
+
+            try:
+                logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME + \
+                    " - id_user = "+str(id_user)+" - roles = "+str(role)+"\n"
+            except Exception as e:
+                logs = secure_filename(strftime(
+                    "%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME+" - id_user = NULL - roles = NULL\n"
+            # tambahLogs(logs)
+            return make_response(jsonify({'status_code': 200, 'description': hasil}), 200)
+
+
+        
     except Exception as e:
         return bad_request(str(e))
 
@@ -157,7 +179,7 @@ def register():
 
 @app.route("/users/login", methods=["POST"])
 @cross_origin()
-def login_customer():
+def login_users():
     ROUTE_NAME = request.path
 
     data = request.json
@@ -173,10 +195,11 @@ def login_customer():
     password_enc = hashlib.md5(password.encode(
         'utf-8')).hexdigest()  # Convert password to md5
 
+
     # Check credential in database
     dt = Data()
-    query = """ SELECT b.id_user, b.email, b.password 
-            FROM customer a LEFT JOIN users b ON a.id_user=b.id_user
+    query = """ SELECT b.id_user, b.email, b.password, b.status_id  
+            FROM guru a LEFT JOIN users b ON a.id_user=b.id_user
             WHERE a.is_aktif = 1 AND a.is_delete != 1 AND b.status_user = 11 AND b.is_delete != 1 AND  
             b.email = %s """
     values = (email, )
@@ -186,33 +209,62 @@ def login_customer():
     data_user = data_user[0]
     db_id_user = data_user["id_user"]
     db_password = data_user["password"]
+    db_email = data_user['email']
+    db_status_guru = data_user['status_id']
 
     if password_enc != db_password:
         return defined_error("Wrong Password", "Invalid Credential", 401)
+    
+    if email == db_email and db_status_guru == "guru":
+        role = 21
+        role_desc = "guru"
 
-    role = 21
-    role_desc = "CUSTOMER"
+        jwt_payload = {
+            "id_user": db_id_user,
+            "role": role,
+            "role_desc": role_desc,
+            "email": email
+        }
 
-    jwt_payload = {
-        "id_user": db_id_user,
-        "role": role,
-        "role_desc": role_desc,
-        "email": email
-    }
+        access_token = create_access_token(email, additional_claims=jwt_payload)
 
-    access_token = create_access_token(email, additional_claims=jwt_payload)
+        # Update waktu terakhir login customer
+        query_temp = "UPDATE guru SET waktu_terakhir_login = now() WHERE id_user = %s"
+        values_temp = (db_id_user, )
+        dt.insert_data(query_temp, values_temp)
 
-    # Update waktu terakhir login customer
-    query_temp = "UPDATE customer SET waktu_terakhir_login = now() WHERE id_user = %s"
-    values_temp = (db_id_user, )
-    dt.insert_data(query_temp, values_temp)
+        try:
+            logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME + \
+                " - id_user = "+str(db_id_user)+" - roles = "+str(role)+"\n"
+        except Exception as e:
+            logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S")) + \
+                " - "+ROUTE_NAME+" - id_user = NULL - roles = NULL\n"
+        # tambahLogs(logs)
 
-    try:
-        logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME + \
-            " - id_user = "+str(db_id_user)+" - roles = "+str(role)+"\n"
-    except Exception as e:
-        logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S")) + \
-            " - "+ROUTE_NAME+" - id_user = NULL - roles = NULL\n"
-    tambahLogs(logs)
+        else :
+            role = 21
+            role_desc = "murid"
+
+            jwt_payload = {
+                "id_user": db_id_user,
+                "role": role,
+                "role_desc": role_desc,
+                "email": email
+            }
+
+            access_token = create_access_token(email, additional_claims=jwt_payload)
+
+            # Update waktu terakhir login customer
+            query_temp = "UPDATE murid SET waktu_terakhir_login = now() WHERE id_user = %s"
+            values_temp = (db_id_user, )
+            dt.insert_data(query_temp, values_temp)
+
+            try:
+                logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S"))+" - "+ROUTE_NAME + \
+                    " - id_user = "+str(db_id_user)+" - roles = "+str(role)+"\n"
+            except Exception as e:
+                logs = secure_filename(strftime("%Y-%m-%d %H:%M:%S")) + \
+                    " - "+ROUTE_NAME+" - id_user = NULL - roles = NULL\n"
+            # tambahLogs(logs)
 
     return jsonify(access_token=access_token)

@@ -1,3 +1,4 @@
+import flask
 from . import config as CFG
 from flask import Flask, Blueprint, jsonify, request, make_response, render_template
 from werkzeug.utils import secure_filename
@@ -93,6 +94,7 @@ def tambahLogs(logs):
 
 # endregion ================================= FUNGSI-FUNGSI AREA ===============================================================
 
+from email_validator import validate_email
 
 @app.route("/users/register", methods=['POST'])
 @cross_origin()
@@ -115,12 +117,17 @@ def register():
         if "status_id" not in data:
             return parameter_error("Missing status user in request body")
 
+
         # mendapat data dari request body
         nama = request.json.get('nama')
         email = request.json.get('email')
         no_tlp = request.json.get('no_tlp')
         password = request.json.get('password')
         status_id = request.json.get('status_id')
+
+        # email_validate = validate_email(email).email
+        # if email != email_validate:
+        #     return parameter_error("Email not valid")
 
         # check if Email already used or not
         query_temp = "SELECT email FROM users WHERE email = %s"
@@ -268,3 +275,183 @@ def login_users():
             # tambahLogs(logs)
 
     return jsonify(access_token=access_token)
+
+
+
+# # AS simeple as possbile flask google oAuth 2.0
+# from flask import Flask, redirect, url_for, session
+# from authlib.integrations.flask_client import OAuth
+# import os
+# from datetime import timedelta
+
+# # decorator for routes that should be accessible only by logged in users
+# from .auth_decorator import login_required
+
+# # dotenv setup
+# from dotenv import load_dotenv
+# load_dotenv()
+
+
+# # App config
+# app = Flask(__name__)
+# # Session config
+# app.secret_key = os.getenv("APP_SECRET_KEY")
+# app.config['SESSION_COOKIE_NAME'] = 'google-login-session'
+# app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=5)
+
+# # oAuth Setup
+# oauth = OAuth(app)
+# google = oauth.register(
+#     name='google',
+#     client_id=os.getenv("GOOGLE_CLIENT_ID"),
+#     client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+#     access_token_url='https://accounts.google.com/o/oauth2/token',
+#     access_token_params=None,
+#     authorize_url='https://accounts.google.com/o/oauth2/auth',
+#     authorize_params=None,
+#     api_base_url='https://www.googleapis.com/oauth2/v1/',
+#     userinfo_endpoint='https://openidconnect.googleapis.com/v1/userinfo',  # This is only needed if using openId to fetch user info
+#     client_kwargs={'scope': 'openid email profile'},
+# )
+
+
+# @app.route('/')
+# @login_required
+# def hello_world():
+#     email = dict(session)['profile']['email']
+#     return f'Hello, you are logge in as {email}!'
+
+
+# @app.route('/user/login/google')
+# def login():
+#     google = oauth.create_client('google')  # create the google oauth client
+#     redirect_uri = url_for('authorize', _external=True)
+#     return google.authorize_redirect(redirect_uri)
+
+
+# @app.route('/authorize')
+# def authorize():
+#     google = oauth.create_client('google')  # create the google oauth client
+#     token = google.authorize_access_token()  # Access token from google (needed to get user info)
+#     resp = google.get('userinfo')  # userinfo contains stuff u specificed in the scrope
+#     user_info = resp.json()
+#     user = oauth.google.userinfo()  # uses openid endpoint to fetch user info
+#     # Here you use the profile/user data that you got and query your database find/register the user
+#     # and set ur own data in the session not the profile from google
+#     session['profile'] = user_info
+#     session.permanent = True  # make the session permanant so it keeps existing after broweser gets closed
+#     return redirect('/')
+
+
+# @app.route('/logout')
+# def logout():
+#     for key in list(session.keys()):
+#         session.pop(key)
+#     return redirect('/')
+
+
+from flask import Flask, render_template, url_for, redirect, session
+from authlib.integrations.flask_client import OAuth
+from authlib.integrations.requests_client import OAuth2Session
+from datetime import timedelta
+
+
+oauth = OAuth(app)
+
+app.config['SECRET_KEY'] = "anaksekolahid"
+app.config['GOOGLE_CLIENT_ID'] = "780995326706-72v4csud2t1mhlc1k283cb3pte72p7f5.apps.googleusercontent.com"
+app.config['GOOGLE_CLIENT_SECRET'] = "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"
+app.config['SESSION_COOKIE_NAME'] = 'google-login-session'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=5)
+
+google = oauth.register(
+    name = 'google',
+    client_id = app.config["GOOGLE_CLIENT_ID"],
+    client_secret = app.config["GOOGLE_CLIENT_SECRET"],
+    access_token_url = 'https://accounts.google.com/o/oauth2/token',
+    access_token_params = None,
+    authorize_url = 'https://accounts.google.com/o/oauth2/auth',
+    authorize_params = None,
+    api_base_url = 'https://www.googleapis.com/oauth2/v1/',
+    userinfo_endpoint = 'https://openidconnect.googleapis.com/v1/userinfo',  # This is only needed if using openId to fetch user info
+    client_kwargs = {'scope': 'openid email profile'},
+    jwks_uri = "https://www.googleapis.com/oauth2/v3/certs",
+    
+)
+
+client = OAuth2Session(
+    client_id = app.config["GOOGLE_CLIENT_ID"],
+    client_secret = app.config["GOOGLE_CLIENT_SECRET"],
+    scope = 'user:email',
+    token_endpoint = 'https://accounts.google.com/o/oauth2/token',
+    authorize_url = 'https://accounts.google.com/o/oauth2/auth'
+)
+
+
+@app.route('/login/google')
+def google_login():
+    google = oauth.create_client('google')
+    redirect_uri = url_for('google_authorize', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+# Google authorize route
+@app.route('/login/google/authorize')
+def google_authorize():
+    google = oauth.create_client('google')
+    token = google.authorize_access_token()
+    resp = google.get('userinfo').json()
+
+
+    return f"\n{resp}\n"
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/')
+
+# from authlib.integrations.flask_client import OAuth
+# from flask import Flask, render_template, url_for, redirect, session
+# oauth = OAuth(app)
+
+# @app.route('/login/google')
+# def google():
+
+#     GOOGLE_CLIENT_ID = '780995326706-72v4csud2t1mhlc1k283cb3pte72p7f5.apps.googleusercontent.com'
+#     GOOGLE_CLIENT_SECRET = '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'
+
+#     CONF_URL = 'https://accounts.google.com/.well-known/openid-configuration'
+#     oauth.register(
+#         name='google',
+#         client_id=GOOGLE_CLIENT_ID,
+#         client_secret=GOOGLE_CLIENT_SECRET,
+#         server_metadata_url=CONF_URL,
+#         # client_kwargs={
+#         #     'scope': 'openid email profile'
+#         # },
+#         access_token_url = 'https://accounts.google.com/o/oauth2/token',
+#         access_token_params = None,
+#         authorize_url = 'https://accounts.google.com/o/oauth2/auth',
+#         authorize_params = None,
+#         api_base_url = 'https://www.googleapis.com/oauth2/v1/',
+#         userinfo_endpoint = 'https://openidconnect.googleapis.com/v1/userinfo',  # This is only needed if using openId to fetch user info
+#         client_kwargs = {'scope': 'openid email profile'},
+#         jwks_uri = "https://www.googleapis.com/oauth2/v3/certs"
+#     )
+
+#     # Redirect to google_auth function
+#     redirect_uri = url_for('google_auth', _external=True)
+#     print(redirect_uri)
+#     return oauth.google.authorize_redirect(redirect_uri)
+
+# @app.route('/login/google/authorize')
+# def google_auth():
+#     token = oauth.google.authorize_access_token()
+#     resp = google.get('userinfo').json()
+#     # user = oauth.google.parse_id_token(token)
+#     print(" Google User ", resp)
+#     return redirect('/')
+
+
+if __name__ == '__main__':
+  app.run(debug=True)
+
